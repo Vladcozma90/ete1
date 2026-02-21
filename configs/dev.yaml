@@ -1,0 +1,21 @@
+catalog: dev_commerce
+
+project: ete1
+
+logger_level: INFO
+
+paths:
+  landing_base_path: "abfss://source@databricksendtoendtest.dfs.core.windows.net"
+  raw_base_path: "abfss://raw@databricksendtoendtest.dfs.core.windows.net"
+  curated_base_path: "abfss://curated@databricksendtoendtest.dfs.core.windows.net"
+  ops_base_path: "abfss://ops@databricksendtoendtest.dfs.core.windows.net"
+  checkpoint_base_path: "abfss://checkpoint@databricksendtoendtest.dfs.core.windows.net"
+
+allowed_entities:
+  -customers
+  -products
+  -orders
+
+dq_scope:
+  -batch
+  -current
