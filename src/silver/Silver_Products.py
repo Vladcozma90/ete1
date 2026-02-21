@@ -6,6 +6,8 @@ from pyspark.sql.functions import *
 from pyspark.sql.window import Window
 from delta.tables import DeltaTable
 from src.utils.env import EnvConfig
+from src.utils.watermark import get_last_watermark, upsert_watermark
+from src.utils.transform_utils import norm_str
 
 logger = logging.getLogger(__name__)
 
@@ -34,62 +36,6 @@ def _build_config(env: EnvConfig) -> dict[str, str]:
         "quarantine_path" : f"{env.curated_base_path}/{env.project}/products/quarantine/bad_keys",
         "dq_path" : f"{env.curated_base_path}/{env.project}/products/data_quality"
     }
-
-def _norm_str(c):
-    return when(trim(c) == "", lit(None)).otherwise(trim(c))
-
-def _ensure_table_props(spark: SparkSession, table_name: str) -> None:
-    spark.sql(f"""
-                ALTER TABLE {table_name}
-                SET TBLPROPERTIES (
-                'delta.autoOptimize.optimizeWrite' = 'true',
-                'delta.autoOptimize.autoCompact' = 'true'
-                )
-            """)
-
-
-def _get_last_watermark(spark: SparkSession, state_table: str, pipeline_name: str, dataset: str) -> datetime:
-    rows = spark.sql(f"""
-                    SELECT last_watermark_ts
-                    FROM {state_table}
-                    WHERE pipeline_name = '{pipeline_name}' AND dataset = '{dataset}'
-                    ORDER BY updated_at DESC
-                    LIMIT 1
-                    """).collect()
-    
-    if (not rows) or rows[0]["last_watermark_ts"] is None:
-        return datetime(1900, 1, 1)
-    return rows[0]["last_watermark_ts"]
-
-def _upsert_watermark(
-        spark: SparkSession,
-        state_table: str,
-        pipeline_name: str,
-        dataset: str,
-        new_wm: datetime,
-        run_id: str
-) -> None:
-    wm_to_log = new_wm.isoformat(sep=" ")
-    spark.sql(f"""
-                MERGE INTO {state_table} t
-                USING (
-                    SELECT
-                    '{pipeline_name}' AS pipeline_name,
-                    '{dataset}' AS dataset,
-                    TIMESTAMP '{wm_to_log}' AS last_watermark_ts,
-                    '{run_id}' AS updated_by_run_id
-                ) s
-                ON t.pipeline_name = s.pipeline_name AND t.dataset = s.dataset
-                WHEN MATCHED THEN UPDATED SET
-                    t.last_watermark_ts = s.last_watermark_ts,
-                    t.updated_at = current_timestamp(),
-                    t.updated_by_run_id = s.updated_by_run_id
-                WHEN NOT MATCHED THEN INSERT (pipeline_name, dataset, last_watermark_ts, updated_at, updated_by_run_id)
-                VALUES(s.pipeline_name, s.dataset, s.last_watermark_ts, current_timestamp(), s.updated_by_run_id)
-            """)
-
-
-
 
 def run_silver_products(spark: SparkSession, env: EnvConfig, dq_scope: str = "batch") -> None:
 
@@ -133,7 +79,7 @@ def run_silver_products(spark: SparkSession, env: EnvConfig, dq_scope: str = "ba
         if missing:
             raise ValueError(f"Bronze missing required cols: {missing}")
         
-        last_wm = _get_last_watermark(spark, cfg["state_table"], pipeline_name, dataset)
+        last_wm = get_last_watermark(spark, cfg["state_table"], pipeline_name, dataset)
 
         incr_df = bronze_df.filter(col("_ingest_ts") > lit(last_wm))
 
@@ -161,9 +107,9 @@ def run_silver_products(spark: SparkSession, env: EnvConfig, dq_scope: str = "ba
         stage_df = (
             incr_df
             .withColumn(pk, col(pk).cast("string"))
-            .withColumn("product_name", _norm_str(col("product_name").cast("string")))
-            .withColumn("category", _norm_str(col("category").cast("string")))
-            .withColumn("brand", _norm_str(col("brand").cast("string")))
+            .withColumn("product_name", norm_str(col("product_name").cast("string")))
+            .withColumn("category", norm_str(col("category").cast("string")))
+            .withColumn("brand", norm_str(col("brand").cast("string")))
             .withColumn("price", col("price").cast("double"))
             .withColumn("etl_run_id", lit(RUN_ID))
             .withColumn("processed_ts", current_timestamp())
@@ -183,7 +129,6 @@ def run_silver_products(spark: SparkSession, env: EnvConfig, dq_scope: str = "ba
                     USING DELTA
                     LOCATION '{cfg['stage_path']}'
                 """)
-        _ensure_table_props(spark, cfg["stage_table"])
 
         stage_df = spark.read.table(cfg["stage_table"])
         
@@ -228,7 +173,6 @@ def run_silver_products(spark: SparkSession, env: EnvConfig, dq_scope: str = "ba
                     USING DELTA
                     LOCATION '{cfg["current_path"]}'
                 """)
-        _ensure_table_props(spark, cfg["current_table"])
 
         current_dt = DeltaTable.forName(spark, cfg["current_table"])
 
@@ -306,7 +250,6 @@ def run_silver_products(spark: SparkSession, env: EnvConfig, dq_scope: str = "ba
                     USING DELTA
                     LOCATION '{cfg["dq_path"]}'
                 """)
-        _ensure_table_props(spark, cfg["dq_table"])
 
         if dq_result == "FAIL":
             raise ValueError(f"dq result ({dq_scope}) failed: "
@@ -340,7 +283,6 @@ def run_silver_products(spark: SparkSession, env: EnvConfig, dq_scope: str = "ba
                     USING DELTA
                     LOCATION '{cfg["conform_path"]}'
                 """)
-        _ensure_table_props(spark, cfg["conform_table"])
 
         conf_dt = DeltaTable.forName(spark, cfg["conform_table"])
         
@@ -442,7 +384,7 @@ def run_silver_products(spark: SparkSession, env: EnvConfig, dq_scope: str = "ba
         .execute()
          )
         
-        _upsert_watermark(spark, cfg["state_table"], pipeline_name, dataset, new_wm, run_id)
+        upsert_watermark(spark, cfg["state_table"], pipeline_name, dataset, new_wm, run_id)
 
         spark.sql(f"""
             UPDATE {cfg["run_logs_table"]}

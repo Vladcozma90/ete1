@@ -15,7 +15,7 @@ BACKFILL_DAYS = int(dbutils.widgets.get("backfill_days").strip())
 
 CONFIG = {
 
-    "silver_orders_table" : f"{env.catalog}.{env.dataset}_silver.conform_orders",
+    "silver_orders_table" : f"{env.catalog}.{env.project}_silver.conform_orders",
 
     "gold_dim_customers_table" : f"{env.catalog}.{env.dataset}_gold.dim_customers_hist",
     "gold_dim_products_table" : f"{env.catalog}.{env.dataset}_gold.dim_products_hist",
