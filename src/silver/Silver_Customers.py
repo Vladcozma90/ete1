@@ -15,8 +15,6 @@ DQ_MAX_PK_NULL = 0.0
 DQ_MAX_EMAIL_NULL = 0.05
 DQ_MAX_EMAIL_INVALID = 0.05
 
-
-
 def _build_config(env: EnvConfig) -> dict[str, str]:
 
     return {
