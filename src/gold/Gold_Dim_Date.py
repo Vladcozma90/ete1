@@ -10,8 +10,8 @@ env = load_envs()
 
 CONFIG = {
     
-    "gold_dim_table" : f"{env.catalog}.{env.dataset}_gold.dim_date",
-    "gold_dim_path" : f"{env.curated_base_path}/{env.dataset}/dim_date",
+    "gold_dim_table" : f"{env.catalog}.{env.project}_gold.dim_date",
+    "gold_dim_path" : f"{env.curated_base_path}/{env.project}/dim_date",
 }
 
 spark.sql(f"""

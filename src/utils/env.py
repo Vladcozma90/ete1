@@ -15,7 +15,7 @@ class EnvConfig:
     ops_base_path: str
     checkpoint_base_path: str
     logger_level : str
-    allowed_entities: list[str]
+    allowed_datasets: list[str]
     dq_scope : list[str]
 
 def _require_str(value, name: str) -> str:
@@ -40,19 +40,19 @@ def load_envs() -> EnvConfig:
     paths: dict[str, Any] = cfg.get("paths", {})
 
     
-    allowed_entities = cfg.get("allowed_entities")
+    allowed_datasets = cfg.get("allowed_datasets")
     if (
-        not isinstance(allowed_entities, list)
-        or not allowed_entities
-        or not all(isinstance(i, str) and i for i in allowed_entities)
+        not isinstance(allowed_datasets, list)
+        or not allowed_datasets
+        or not all(isinstance(i, str) and i for i in allowed_datasets)
     ):
-        raise ValueError("allowed_entities must be a non-empty list of strings")
+        raise ValueError("allowed_datasets must be a non-empty list of strings")
     
     dq_scope = cfg.get("dq_scope")
     if (
         not isinstance(dq_scope, list)
         or not dq_scope
-        or not all(isinstance(i, str) and i for i in allowed_entities)
+        or not all(isinstance(i, str) and i for i in allowed_datasets)
     ):
         raise ValueError("dq_scope must be a non-empty list of strings")
 
@@ -65,6 +65,6 @@ def load_envs() -> EnvConfig:
         ops_base_path=_require_str(paths.get("ops_base_path"), "ops_base_path"),
         checkpoint_base_path=_require_str(paths.get("checkpoint_base_path"), "checkpoint_base_path"),
         logger_level=_require_str(logger_level, "logger_level"),
-        allowed_entities=allowed_entities,
+        allowed_datasets=allowed_datasets,
         dq_scope=dq_scope
     )

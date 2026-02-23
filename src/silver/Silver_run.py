@@ -23,7 +23,7 @@ def _execution_map():
         "orders" : run_silver_orders
     }
 
-def run_silver(selected_entities: Optional[list[str]] = None) -> None:
+def run_silver(selected_datasets: Optional[list[str]] = None) -> None:
 
     spark = _get_spark()
     env = load_envs()
@@ -32,24 +32,24 @@ def run_silver(selected_entities: Optional[list[str]] = None) -> None:
     dq_scope = env.dq_scope
     execution_map = _execution_map()
 
-    if selected_entities is None:
-        entities = env.allowed_entities
+    if selected_datasets is None:
+        datasets = env.allowed_datasets
     else:
-        entities = selected_entities
+        datasets = selected_datasets
 
-    invalid = [e for e in entities if e not in execution_map]
+    invalid = [e for e in datasets if e not in execution_map]
     if invalid:
-        raise ValueError(f"Invalid silver entities requested: {invalid}. Expected: {execution_map.keys()}")
+        raise ValueError(f"Invalid silver datasets requested: {invalid}. Expected: {execution_map.keys()}")
     
     logger.info("Starting SILVER layer")
-    logger.info("Entities to run %s", entities)
+    logger.info("datasets to run %s", datasets)
 
     try:
 
-        for entity in entities:
-            logger.info("Running silver pipeline %s", entity)
-            execution_map[entity](spark, env, dq_scope)
-            logger.info("Finished silver pipeline: %s", entity)
+        for dataset in datasets:
+            logger.info("Running silver pipeline %s", dataset)
+            execution_map[dataset](spark, env, dq_scope)
+            logger.info("Finished silver pipeline: %s", dataset)
 
         logger.info("SILVER layer completed successfully.")
     

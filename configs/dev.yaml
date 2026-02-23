@@ -11,7 +11,7 @@ paths:
   ops_base_path: "abfss://ops@databricksendtoendtest.dfs.core.windows.net"
   checkpoint_base_path: "abfss://checkpoint@databricksendtoendtest.dfs.core.windows.net"
 
-allowed_entities:
+allowed_datasets:
   -customers
   -products
   -orders
