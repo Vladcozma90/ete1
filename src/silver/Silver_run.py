@@ -47,9 +47,7 @@ def run_silver(selected_datasets: Optional[list[str]] = None) -> None:
     try:
 
         for dataset in datasets:
-            logger.info("Running silver pipeline %s", dataset)
             execution_map[dataset](spark, env, dq_scope)
-            logger.info("Finished silver pipeline: %s", dataset)
 
         logger.info("SILVER layer completed successfully.")
     

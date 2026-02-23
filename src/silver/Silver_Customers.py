@@ -39,8 +39,6 @@ def _build_config(env: EnvConfig) -> dict[str, str]:
     }
 
 
-
-
 def run_silver_customers(spark: SparkSession, env: EnvConfig, dq_scope: str = "batch") -> None:
 
     dq_scope = (dq_scope or "batch").strip().lower()
@@ -121,8 +119,8 @@ def run_silver_customers(spark: SparkSession, env: EnvConfig, dq_scope: str = "b
                     .withColumn("domain", split(col("email"), "@").getItem(1).cast("string"))
                     .withColumn("_valid_email", regexp_like(col("email"), r"^[a-zA-Z0-9_.%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"))
                     .withColumn("etl_run_id", lit(run_id))
-                    .withColumn("processed_ts", current_timestamp())
-                    .withColumn("processed_date", current_date())
+                    .withColumn("silver_processed_ts", current_timestamp())
+                    .withColumn("silver_processed_date", current_date())
                     .withColumn("source_layer", lit("bronze"))
                     .drop("first_name", "last_name")
                     )
@@ -298,6 +296,7 @@ def run_silver_customers(spark: SparkSession, env: EnvConfig, dq_scope: str = "b
 
         conf_dt = DeltaTable.forName(spark, cfg["conform_table"])
 
+        # Insert unknown customer if not exists to handle FKs in orders
         unknown = spark.range(1).select(
             lit(-1).cast("bigint").alias("customer_sk"),
             lit("unknown").alias("customer_id"),
@@ -325,6 +324,7 @@ def run_silver_customers(spark: SparkSession, env: EnvConfig, dq_scope: str = "b
         
         scd_cols = ["email", "city", "state", "full_name", "domain"]
 
+        
         incoming = (
             dedup
             .withColumn("record_hash", sha2(concat_ws("||", *[coalesce(col(c), lit("")) for c in scd_cols]), 256))
@@ -334,7 +334,7 @@ def run_silver_customers(spark: SparkSession, env: EnvConfig, dq_scope: str = "b
                 "_file_name", "_source", "record_hash", "silver_effective_start_ts"
             )
         )
-
+        
         conf_active = (
             conf_dt.toDF()
             .filter(col("is_current") == True)
@@ -370,7 +370,7 @@ def run_silver_customers(spark: SparkSession, env: EnvConfig, dq_scope: str = "b
                  )
         
         (conf_dt.alias("t")
-         .merge(staged.alias("s"), f"t.customer_id = s.merge_key AND t.is_current = true")
+         .merge(staged.alias("s"), "t.customer_id = s.merge_key AND t.is_current = true")
          .whenMatchedUpdate(
              condition= "t.record_hash <> s.record_hash",
              set={

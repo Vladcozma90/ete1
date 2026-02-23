@@ -3,7 +3,7 @@ import os
 from dataclasses import dataclass
 from typing import Any
 from pathlib import Path
-import yaml # type: ignore
+import yaml
 
 @dataclass(frozen=True)
 class EnvConfig:
@@ -17,6 +17,8 @@ class EnvConfig:
     logger_level : str
     allowed_datasets: list[str]
     dq_scope : list[str]
+    backfill_days: int
+
 
 def _require_str(value, name: str) -> str:
     if not isinstance(value, str) or not value:
@@ -55,6 +57,8 @@ def load_envs() -> EnvConfig:
         or not all(isinstance(i, str) and i for i in allowed_datasets)
     ):
         raise ValueError("dq_scope must be a non-empty list of strings")
+    
+    backfill_days = cfg.get("backfill_days", 0)
 
     return EnvConfig(
         catalog=_require_str(catalog, "catalog"),
@@ -66,5 +70,6 @@ def load_envs() -> EnvConfig:
         checkpoint_base_path=_require_str(paths.get("checkpoint_base_path"), "checkpoint_base_path"),
         logger_level=_require_str(logger_level, "logger_level"),
         allowed_datasets=allowed_datasets,
-        dq_scope=dq_scope
+        dq_scope=dq_scope,
+        backfill_days=backfill_days
     )
